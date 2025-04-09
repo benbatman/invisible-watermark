@@ -8,3 +8,4 @@ pycparser==2.22
 PyWavelets==1.6.0
 reedsolo==1.7.0
 sympy==1.12
+tqdm==4.67.1

@@ -1,6 +1,6 @@
 import json
 
-with open("test_digi_inno.json") as f:
+with open("sample_data/test_json/c2pa.json") as f:
     data = json.load(f)
 
 json_str = json.dumps(data)
