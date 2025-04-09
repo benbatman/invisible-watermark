@@ -1,2 +1,11 @@
+*.pyc
+__pycache__/
+*.pkl
+dist/
+build/
+
+
+# asdf
 .tool-versions
+
 .venv
