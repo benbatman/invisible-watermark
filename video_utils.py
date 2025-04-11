@@ -473,7 +473,7 @@ def extract_motion(frames, key_pattern, selected_blocks, segment_length, hash_le
 
     # Start extraction at frame 2, must be same as embedding
     for i in tqdm(range(1, len(frames))):
-        # get the position within the kay pattern for this frame (same pattern as embedding)
+        # Get the position within the key pattern for this frame (same pattern as embedding)
         pattern_index = i % len(key_pattern)
         # Get the segment index this frame corresponds to
         segment_index = key_pattern[pattern_index]

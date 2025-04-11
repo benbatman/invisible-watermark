@@ -6,7 +6,7 @@ import cv2
 from reedsolo import RSCodec, ReedSolomonError
 
 from digital_watermark.shared_utils import select_random_blocks
-from constants import JPEG_QUANT_TABLE
+from digital_watermark.constants import JPEG_QUANT_TABLE
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

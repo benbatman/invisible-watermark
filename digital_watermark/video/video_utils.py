@@ -5,40 +5,6 @@ from reedsolo import RSCodec, ReedSolomonError
 import numpy as np
 
 
-def binarize_and_encode_watermark(watermark: str, ecc_symbols: int = 20):
-    """
-    Takes in a JSON string and returns the binary representation of the encoded hash.
-    Parameters:
-    -----------
-    json_str: str
-        The JSON string to be encoded.
-    ecc_symbols: int
-        The number of error correction symbols to use for the Reed-Solomon encoding.
-    Returns:
-    ---------
-    bit_str: str
-        The binary representation of the encoded hash.
-    byte_str: bytes
-        The byte representation of the encoded hash.
-    bit_hash_length: int
-        The length of the bit hash.
-    """
-    rs = RSCodec(ecc_symbols)
-    byte_str = watermark.encode("utf-8")
-    encoded_bytes = rs.encode(byte_str)
-
-    bit_str = "".join(format(byte, "08b") for byte in encoded_bytes)
-    print(bit_str)
-    print(len(bit_str))
-
-    bytes_list = [int(bit_str[i : i + 8], 2) for i in range(0, len(bit_str), 8)]
-    byte_str = bytes(bytes_list)
-    print(byte_str)
-    print(len(byte_str))
-    bit_hash_length = len(bit_str)
-    return bit_str, byte_str, bit_hash_length
-
-
 def read_video_frames(video_path):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)

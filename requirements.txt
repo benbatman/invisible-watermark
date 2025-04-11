@@ -9,3 +9,6 @@ PyWavelets==1.6.0
 reedsolo==1.7.0
 sympy==1.12
 tqdm==4.67.1
+scipy==1.15.2
+pydub==0.25.1
+matplotlib==3.10.1

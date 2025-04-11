@@ -1,3 +1,8 @@
+from typing import Tuple
+
+import json
+
+from reedsolo import RSCodec
 import numpy as np
 
 
@@ -7,12 +12,12 @@ def select_random_blocks(num_blocks, num_to_select, seed=42):
     return selected_indices
 
 
-def create_coeff_pairs(self, channel, hash_length, seed=42):
+def create_coeff_pairs(channel, hash_length, quant_table: np.ndarray, seed=42):
     np.random.seed(seed)
     # print("Hash length: ", hash_length)
     total_coeffs = channel.size
     coeff_pairs = []
-    sorted_indices = np.argsort(self.quant_table.flatten())
+    sorted_indices = np.argsort(quant_table.flatten())
     # Get lower frequency indices by indexed closer to the beginning of the array
     low_freq_indices = sorted_indices[: int(total_coeffs * 0.4)]
 
@@ -57,3 +62,25 @@ def embed_with_pairs(self, cH, binary_hash, coeff_pairs, seed=42):
         assert abs(post_diff - target_diff) < 0.01, "Diffs not equal"
 
     return cH
+
+
+def binarize_and_encode_watermark(
+    watermark: str, ecc_symbols: int = 20
+) -> Tuple[str, bytes, int]:
+    """
+    Binarizes the watermark and encodes it using Reed-Solomon error correction.
+    """
+    rs = RSCodec(ecc_symbols)
+    byte_str = watermark.encode("utf-8")
+    encoded_bytes = rs.encode(byte_str)
+
+    bit_str = "".join(format(byte, "08b") for byte in encoded_bytes)
+    print(bit_str)
+    print(len(bit_str))
+
+    bytes_list = [int(bit_str[i : i + 8], 2) for i in range(0, len(bit_str), 8)]
+    byte_str = bytes(bytes_list)
+    print(byte_str)
+    print(len(byte_str))
+    bit_hash_length = len(bit_str)
+    return bit_str, byte_str, bit_hash_length
