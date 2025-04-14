@@ -64,6 +64,29 @@ def embed_with_pairs(self, cH, binary_hash, coeff_pairs, seed=42):
     return cH
 
 
+def extract_segment(self, channel, coeff_pairs, seed=42):
+    """
+    Extracts the segment from the channel using the coefficient pairs.
+    """
+    np.random.seed(seed)
+
+    binary_hash = ""
+    for idx1, idx2 in coeff_pairs:
+        # print("dct 1 value: ", channel.flat[idx1])
+        # print("dct 2 value: ", channel.flat[idx2])
+        diff = round(channel.flat[idx1] - channel.flat[idx2], 2)
+        # print("Diff: ", diff)
+        # Adjust diff value to be in the range we want it to be in case jpeg compression caused errors
+
+        # print("Diff after adjustment: ", diff)
+        if diff > 0:
+            binary_hash += "1"
+        elif diff < 0:
+            binary_hash += "0"
+
+    return binary_hash
+
+
 def binarize_and_encode_watermark(
     watermark: str, ecc_symbols: int = 20
 ) -> Tuple[str, bytes, int]:

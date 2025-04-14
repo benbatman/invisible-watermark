@@ -13,6 +13,7 @@ from digital_watermark.shared_utils import (
     create_coeff_pairs,
     embed_with_pairs,
     binarize_and_encode_watermark,
+    extract_segment,
 )
 
 logging.basicConfig(
@@ -64,11 +65,20 @@ class VideoWatermark:
         )
 
         height, width = embedded_frames[0].shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # TODO: Add check for different codecs
         self.save_video(output_path, fourcc, width, height, embedded_frames)
         logger.info(f"Watermark embedded in video: {output_path}")
         logger.info(f"Watermark: {self.watermark}")
         logger.info(f"Verifying watermark can be successfully extracted")
+        decoded_hash = self.extract_watermark(output_path)
+        # Turn decoded_hash into string
+        decoded_hash = "".join([format(byte, "08b") for byte in decoded_hash])
+        logger.info(f"Decoded hash: {decoded_hash}")
+        logger.info(f"Length of decoded hash: {len(decoded_hash)}")
+        logger.info(f"Length of original hash: {len(bit_hash)}")
+        logger.info(f"Watermark: {self.watermark}")
+        if decoded_hash == bit_hash:
+            logger.info("Watermark successfully extracted!")
 
     def _embed_motion(
         self, frames, bit_hash: str, selected_blocks, segment_length
@@ -185,19 +195,79 @@ class VideoWatermark:
             frame = watermarked_frames[i]
             bit_hash_index = key_pattern[i % len(key_pattern)]
             # Each time this runs, it will return bits of length 104 since the original hash was split evenly across 4 frames
+            extracted_frame_bits = self._extract_with_motion_pairs(
+                prev_frame, frame, selected_blocks, segment_length, bit_hash_length / 4
+            )
+            extracted_hash[bit_hash_index].extend(extracted_frame_bits)
+
+            # Reconstruct the hash
+            for j, bit in enumerate(extracted_frame_bits):
+                hash_position = (j * len(key_pattern)) + segment_index
+                if hash_position < bit_hash_length:
+                    reconstructed_hash[hash_position] = bit
+
+            # Every four consecutive frames, join individual hashes into the original
+            if i % 4 == 0 or i == len(watermarked_frames) - 1:
+                assert (
+                    len(reconstructed_hash) == bit_hash_length
+                ), "Length of reconstructed hash does not match expected hash length of 416"
+                # In case the hash wasn't fully constructed, pad with '0's
+                reconstructed_hash = [
+                    bit if bit is not None else "0" for bit in reconstructed_hash
+                ]
+                complete_hash = "".join(reconstructed_hash)
+                final_hashes.append(complete_hash)
+                reconstructed_hash = [None] * bit_hash_length
+
+        return final_hashes
 
     def _extract_with_motion_pairs(
-        self, prev_frame, frame, seleted_blocks, segment_length, bit_hash_length
+        self, prev_frame, frame, selected_blocks, segment_length, bit_hash_length
     ):
-        pass
+        low_motion_mask = is_low_motion(prev_frame, frame, 10)
+        ycrcb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        y_channel = ycrcb_frame[:, :, 0]
+
+        extracted_bits = []
+        h, w = y_channel.shape
+        hash_index = 0
+
+        for block_index in selected_blocks:
+            if hash_index >= bit_hash_length:
+                break
+
+            # Calculate block's original position
+            row = (block_index // (w // 8)) * 8
+            col = (block_index % (w // 8)) * 8
+            if low_motion_mask[row : row + 8, col : col + 8].mean() > 0.5:
+                block = (
+                    y_channel[row : row + 8, col : col + 8].astype(float) - 128
+                )  # Zero shift
+                dct_block = cv2.dct(block)
+                coeff_pairs = create_coeff_pairs(dct_block, segment_length)
+                bits = extract_segment(dct_block, coeff_pairs)
+                extracted_bits.extend(bits)
+                hash_index += segment_length
+
+            else:
+                block = (
+                    y_channel[row : row + 8, col : col + 8].astype(float) - 128
+                )  # Zero shift
+                dct_block = cv2.dct(block)
+                coeff_pairs = create_coeff_pairs(dct_block, segment_length)
+                bits = extract_segment(dct_block, coeff_pairs)
+                extracted_bits.extend(bits)
+                hash_index += segment_length
+
+        return extracted_bits
 
     def extract_watermark(self, video_path: str):
-        frames = read_video_frames(video_path)
-        ycrcb_frame = cv2.cvtColor(frames[0], cv2.COLOR_BGR2YCrCb)
+        watermarked_frames = read_video_frames(video_path)
+        ycrcb_frame = cv2.cvtColor(watermarked_frames[0], cv2.COLOR_BGR2YCrCb)
         y_channel = ycrcb_frame[:, :, 0]
 
         if self.watermark:
-            _, _, bit_hash_length = binarize_and_encode_watermark(
+            bit_str, _, bit_hash_length = binarize_and_encode_watermark(
                 self.watermark, self.ecc_symbols
             )
 
@@ -211,6 +281,37 @@ class VideoWatermark:
         print("Segment length: ", segment_length)
 
         rs = RSCodec(self.ecc_symbols)
+
+        extracted_hashes = self._extract_motion(
+            watermarked_frames,
+            self.key_pattern,
+            selected_blocks,
+            segment_length,
+            bit_hash_length,
+        )
+        for extracted_hash in extracted_hashes:
+            # print("Extracted hash: ", extracted_hash)
+            # print("Length of extracted hash: ", len(extracted_hash))
+            hash_bytes = bytes(
+                [
+                    int(extracted_hash[i : i + 8], 2)
+                    for i in range(0, len(extracted_hash), 8)
+                ]
+            )
+
+            try:
+                decoded_hash, decoded_hash_and_ec, _ = rs.decode(hash_bytes)
+                print("Length of decoded_hash: ", len(decoded_hash))
+
+                if len(decoded_hash_and_ec) == bit_hash_length / 8:
+                    print("Huzzah, hash successfully decoded!")
+                    print("Decoded hash: ", decoded_hash)
+                    return decoded_hash
+
+            except Exception as e:
+                logger.error(f"Error decoding hash with RSCodec: {e}")
+
+        logger.error("Failed to decode the watermark hash.")
 
     def save_video(self, output_path: str, fourcc, width, height, frames):
         out = cv2.VideoWriter(output_path, fourcc, self.output_fps, (width, height))

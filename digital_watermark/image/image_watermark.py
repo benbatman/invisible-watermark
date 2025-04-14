@@ -27,6 +27,7 @@ class ImageWatermark:
         self.watermark = watermark
         self.ecc_symbols = ecc_symbols
         self.quant_table = JPEG_QUANT_TABLE
+        self.supported_formats = ["png", "jpg", "jpeg"]
 
     def generate_rc_encoded_hash_from_image(self, image_data: cv2.typing.MatLike):
         """
