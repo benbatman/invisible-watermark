@@ -8,4 +8,4 @@ build/
 # asdf
 .tool-versions
 
-.venv
+venv
